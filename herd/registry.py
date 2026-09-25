@@ -1,0 +1,122 @@
+"""Durable record of every orchestrator and the workers it spawned.
+
+One JSON file per orchestrator in the state dir. Written before any tab
+opens, so a crash never loses a session id.
+"""
+
+import json
+import os
+import re
+import tempfile
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+class RegistryError(Exception):
+    pass
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def state_dir() -> Path:
+    d = Path(os.environ.get("HERD_STATE_DIR") or Path.home() / ".local/state/herd")
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def slugify(text: str, taken=()) -> str:
+    """Herdr agent name rules: [a-z][a-z0-9_-]{0,31}, unique."""
+    base = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "worker"
+    if not base[0].isalpha():
+        base = "w-" + base
+    base = base[:32].rstrip("-")
+    slug, n = base, 2
+    while slug in taken:
+        suffix = f"-{n}"
+        slug = base[: 32 - len(suffix)].rstrip("-") + suffix
+        n += 1
+    return slug
+
+
+class Registry:
+    def __init__(self, slug: str, data: dict):
+        self.slug = slug
+        self.data = data
+
+    @property
+    def path(self) -> Path:
+        return state_dir() / f"{self.slug}.json"
+
+    @classmethod
+    def create(cls, label: str, workspace_id: str, cwd: str, orchestrator: dict) -> "Registry":
+        slug = slugify(label)
+        if (state_dir() / f"{slug}.json").exists():
+            raise RegistryError(f"an orchestrator named {slug!r} already exists")
+        return cls(slug, {
+            "label": label,
+            "workspace_id": workspace_id,
+            "cwd": cwd,
+            "orchestrator": orchestrator,
+            "workers": [],
+            "created_at": now(),
+        })
+
+    @classmethod
+    def load(cls, slug: str) -> "Registry":
+        path = state_dir() / f"{slug}.json"
+        if not path.exists():
+            raise RegistryError(f"no orchestrator named {slug!r} (see: herd ls)")
+        return cls(slug, json.loads(path.read_text()))
+
+    @classmethod
+    def all(cls) -> list:
+        return [cls.load(p.stem) for p in sorted(state_dir().glob("*.json"))]
+
+    @classmethod
+    def find_by_workspace(cls, workspace_id: str):
+        for r in cls.all():
+            if r.data.get("workspace_id") == workspace_id:
+                return r
+        return None
+
+    def worker(self, name: str):
+        key = name.strip().lower()
+        for w in self.data["workers"]:
+            if w["slug"] == key or w["label"].lower() == key:
+                return w
+        return None
+
+    def save(self) -> None:
+        self.data["updated_at"] = now()
+        fd, tmp = tempfile.mkstemp(dir=state_dir(), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(self.data, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            os.replace(tmp, self.path)
+        except BaseException:
+            os.unlink(tmp)
+            raise
+
+
+def new_worker(reg: Registry, label: str, model: str, why: str, cwd: str, brief: str) -> dict:
+    taken = {w["slug"] for w in reg.data["workers"]}
+    return {
+        "label": label,
+        "slug": slugify(label, taken),
+        "model": model,
+        "why": why,
+        "session_id": str(uuid.uuid4()),
+        "cwd": cwd,
+        "brief": brief,
+        "status": "starting",
+        "tab_id": None,
+        "pane_id": None,
+        "handoff": None,
+        "error": None,
+        "created_at": now(),
+        "updated_at": now(),
+    }

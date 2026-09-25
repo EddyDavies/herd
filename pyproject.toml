@@ -1,0 +1,19 @@
+[project]
+name = "herd"
+version = "0.1.0"
+description = "Orchestrator and worker Claude chats on Herdr"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+herd = "herd.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
