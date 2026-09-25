@@ -1,0 +1,86 @@
+---
+name: herd-orchestrator
+description: Use when Eddy asks this chat to orchestrate other chats, spawn workers or new chats in Herdr tabs, act as the central or orchestrator chat, or restore a set of chats he closed. Covers spawning labelled worker chats with the right model (Opus or Fable), reading their SendMessage handoffs, deciding when to close them, and reopening everything later. Requires HERDR_ENV=1.
+---
+
+# herd orchestrator
+
+You are the central chat. Workers do bounded work in their own Herdr tabs; you hold the plan, judge their results, and decide when each one closes. The `herd` CLI does every Herdr operation. You never call `herdr tab ...` or `herdr agent ...` yourself.
+
+Talk to workers with SendMessage (their name is their label). Workers talk to you with SendMessage. Herdr is only for tabs.
+
+## Start
+
+Check `echo $HERDR_ENV` prints 1. Then, once per orchestrator:
+
+```
+ListAgents                       # find this chat's own name as others see it
+herd init "<short label>" --name "<that name>"
+```
+
+The workspace is relabelled `◆ <label>`. `herd status` shows your workers, `herd ls` shows every orchestrator on record.
+
+## Spawn a worker
+
+1. Choose the model (efficient-fable split):
+   - **fable** when the worker's core output is a decision: architecture, product or safety tradeoffs, reconciling conflicting evidence, final review, tone sensitive writing for Eddy's audience.
+   - **opus** for everything bounded: research scans, inventories, implementing a written plan, tests and browser checks, bulk edits, data pulls, log reduction.
+   - Unsure: opus. A worker that hits a judgement wall will ask you to re-spawn it on fable.
+2. Write a brief as if the worker knows nothing: repo path and exact objective; files in and out of scope; evidence to return (paths, line refs, commands run, diffs, uncertainty); how to verify; stop conditions (code does not match the brief, a command fails after one retry, the task needs out of scope files). Save it in your scratchpad.
+3. Spawn:
+
+```
+herd spawn "<label>" --model opus|fable --why "<one line>" --brief <file> [--cwd <dir>]
+```
+
+Labels are 2 to 4 plain words that say what the work is (`drip copy`, `pricing review`), so Eddy can find the tab. Tab shows `<model> · <label>`.
+
+Spawn independent slices in parallel. Keep tightly coupled work in one worker or with you.
+
+## Handoffs
+
+A worker finishes by sending you:
+
+```
+HERD HANDOFF <label>
+complete: yes|no (...)
+review_worthy: yes|no (...)
+summary: ...
+artifacts: ...
+open: ...
+```
+
+Record it verbatim straight away: write it to a scratch file and run `herd handoff "<label>" --file <file>`. Treat the report as leads, not facts: before relying on a high impact claim, reopen the cited files or rerun the check yourself.
+
+## Closing: deliberate, never automatic on "done"
+
+Finishing a task is not a reason to close. Decide per worker:
+
+| complete | no longer relevant (your call) | review_worthy | do |
+|---|---|---|---|
+| yes | yes | no | `herd close "<label>"` and tell Eddy in one line |
+| yes | yes | yes | `herd mark-review "<label>" --reason "..."`, then ask Eddy in this chat: "close <label>? worth a look because ...". Close only on his yes. |
+| no, or still relevant | | | leave it open |
+
+"No longer relevant" means nothing still planned will send it more work and its context is now captured in your handoff record. If you might message it again, it stays open. Before closing, anything from its context that the plan still needs must already be in this chat or in a file. `herd close` refuses without a recorded handoff and while the worker is working; do not reach for `--force` unless Eddy asked.
+
+Batch the review questions: when several workers await review, ask about them together.
+
+## Restore
+
+Closed tabs are never lost. `herd sync` marks workers whose tabs vanished as detached.
+
+```
+herd restore                     # this orchestrator: every worker not closed
+herd restore <orch> <label>...   # specific workers, including closed ones
+herd restore --all               # include closed workers
+herd restore --every             # every orchestrator, after Herdr was wiped
+```
+
+Already open chats are skipped, never duplicated.
+
+## Do not
+
+- Close a worker because it said it is done.
+- Type into a worker's terminal with `herdr agent prompt` after spawn; use SendMessage.
+- Spawn fable for bounded execution, or opus for the final judgement you owe Eddy.
