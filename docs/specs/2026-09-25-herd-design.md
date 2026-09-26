@@ -24,12 +24,12 @@ One orchestrator chat spawns worker chats, each in its own labelled Herdr tab, r
 
 ### `herd init "<label>" --name "<orchestrator SendMessage name>"`
 
-Run by the orchestrator chat inside its own pane. Reads `HERDR_WORKSPACE_ID` and `HERDR_PANE_ID`, looks up its own Claude session id from `herdr agent list` (`agent_session.value`), renames the workspace to `◆ <label>`, and writes the registry with the orchestrator's session id, cwd, name and model. Refuses if that workspace already belongs to another registry.
+Run by the orchestrator chat inside its own pane. Reads `HERDR_WORKSPACE_ID` and `HERDR_PANE_ID`, looks up its own Claude session id from `herdr agent list` (`agent_session.value`), renames the workspace and its own tab to `◆ <label>`, and writes the registry with the orchestrator's session id, cwd, name and model. Refuses if that workspace already belongs to another registry.
 
 ### `herd spawn "<label>" --model opus|fable --brief <file> [--cwd <dir>]`
 
 1. Generate a uuid; write the worker to the registry with status `starting`.
-2. `herdr tab create` in the orchestrator's workspace, label `<model> · <label>`, cwd defaulting to the orchestrator's.
+2. `herdr tab create` in the orchestrator's workspace, label `<m>> <label>` (`o>` opus, `f>` fable), cwd defaulting to the orchestrator's.
 3. `herdr agent start <slug> --kind claude --pane <pane> -- --session-id <uuid> --name "<label>" --model <model id> --dangerously-skip-permissions`. `<slug>` is the label lowercased to `[a-z0-9-]`, max 32, deduplicated.
 4. `herdr agent prompt <slug> "<kickoff>"`, where the kickoff says: load the `herd-worker` skill, your orchestrator is `<name>`, your brief is at `<file>` (copied into `~/.local/state/herd/<orch-slug>/briefs/`).
 5. Status `live`. Print the tab id and slug.
@@ -39,7 +39,8 @@ Any failed step marks the worker `failed` with the error, prints it, and exits n
 ### Labels
 
 - Workspace: `◆ <orchestrator label>`, e.g. `◆ fc: postiz rollout`.
-- Tab: `<model> · <label>`, e.g. `opus · drip copy`, `fable · pricing review`. When a worker is awaiting your review, `herd` renames its tab to `👀 <model> · <label>`.
+- Orchestrator tab: `◆ <orchestrator label>`.
+- Worker tab: `<m>> <label>`, e.g. `o> drip copy`, `f> pricing review`. When a worker is awaiting your review, `herd` renames its tab to `👀 o> <label>`.
 - Claude session name (what ListAgents and SendMessage show, and what `claude -r` lists): `<label>`.
 
 ### Model choice (in `herd-orchestrator`)

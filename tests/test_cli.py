@@ -30,6 +30,7 @@ def test_init_records_orchestrator_and_labels_workspace(fake, orch):
     assert r.data["orchestrator"]["session_id"] == "orch-sid"
     assert r.data["orchestrator"]["name"] == "Herta and agent messaging"
     assert fake.world()["workspaces"]["w1"]["label"] == "◆ fc: postiz"
+    assert fake.world()["tabs"]["w1:t1"]["label"] == "◆ fc: postiz"
 
 
 def test_init_refuses_second_orchestrator_in_same_workspace(fake, orch, capsys):
@@ -50,7 +51,7 @@ def test_spawn_registers_before_tab_and_starts_claude(fake, orch):
     assert w["status"] == "live" and w["tab_id"] and w["model"] == "opus"
     calls = fake.calls()
     create = next(c for c in calls if c[:2] == ["tab", "create"])
-    assert create[create.index("--label") + 1] == "opus · Drip copy"
+    assert create[create.index("--label") + 1] == "o> Drip copy"
     start = next(c for c in calls if c[:2] == ["agent", "start"])
     claude = start[start.index("--") + 1:]
     assert claude[:6] == ["--session-id", w["session_id"], "--name", "Drip copy", "--model", "claude-opus-5-5"]
@@ -119,7 +120,7 @@ def test_handoff_then_close(fake, orch, tmp_path):
 def test_mark_review_adds_eyes_to_tab(fake, orch):
     w = spawn(orch)
     assert cli.main(["mark-review", "Drip", "--reason", "new layout"]) == 0
-    assert fake.world()["tabs"][w["tab_id"]]["label"] == "👀 opus · Drip"
+    assert fake.world()["tabs"][w["tab_id"]]["label"] == "👀 o> Drip"
     assert reg().worker("drip")["status"] == "review"
 
 

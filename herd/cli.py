@@ -20,7 +20,7 @@ class HerdError(Exception):
 
 
 def tab_label(w: dict) -> str:
-    label = f"{w['model']} · {w['label']}"
+    label = f"{w['model'][0]}> {w['label']}"
     return REVIEW + label if w["status"] == "review" else label
 
 
@@ -77,6 +77,8 @@ def cmd_init(a) -> None:
         "name": a.name, "session_id": sid, "model": a.model, "pane_id": pane, "tab_id": mine.get("tab_id")})
     r.save()
     h.workspace_rename(ws, f"◆ {a.label}")
+    if mine.get("tab_id"):
+        h.tab_rename(mine["tab_id"], f"◆ {a.label}")
     print(f"orchestrator {r.slug} in {ws} (session {sid})")
 
 

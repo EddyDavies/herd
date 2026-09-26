@@ -18,7 +18,7 @@ ListAgents                       # find this chat's own name as others see it
 herd init "<short label>" --name "<that name>"
 ```
 
-The workspace is relabelled `◆ <label>`. `herd status` shows your workers, `herd ls` shows every orchestrator on record.
+The workspace and this chat's tab are both relabelled `◆ <label>`. `init` adopts the workspace you are already in (it never creates a new one), so any unrelated tabs already there stay and end up under the ◆ label; start the orchestrator in a fresh workspace if you want it clean. `herd status` shows your workers, `herd ls` shows every orchestrator on record.
 
 ## Spawn a worker
 
@@ -33,7 +33,7 @@ The workspace is relabelled `◆ <label>`. `herd status` shows your workers, `he
 herd spawn "<label>" --model opus|fable --why "<one line>" --brief <file> [--cwd <dir>]
 ```
 
-Labels are 2 to 4 plain words that say what the work is (`drip copy`, `pricing review`), so Eddy can find the tab. Tab shows `<model> · <label>`.
+Labels are 2 to 4 plain words that say what the work is (`drip copy`, `pricing review`), so Eddy can find the tab. Tab shows `o> <label>` or `f> <label>`.
 
 Spawn independent slices in parallel. Keep tightly coupled work in one worker or with you.
 
