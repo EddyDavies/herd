@@ -37,5 +37,8 @@ def fake(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_HERDR_STATE", str(f.state))
     monkeypatch.setenv("HERD_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("HERDR_ENV", "1")
+    monkeypatch.setenv("HERD_CLAUDE_SESSIONS_DIR", str(tmp_path / "sessions"))
+    monkeypatch.setenv("HERD_CLAUDE_PROJECTS_DIR", str(tmp_path / "projects"))
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
     monkeypatch.delenv("FAKE_HERDR_FAIL", raising=False)
     return f

@@ -5,18 +5,18 @@ description: Use when your first prompt says you are a herd worker, or names an 
 
 # herd worker
 
-An orchestrator chat spawned you in your own Herdr tab to do one slice of work. Your kickoff prompt gave you your label, the orchestrator's SendMessage name, and the path of your brief.
+An orchestrator chat spawned you in your own Herdr tab to do one slice of work. Your kickoff prompt gave you your label and the path of your brief. The orchestrator's SendMessage name is `main: <its label>`; `herd orchestrator` prints it, and is the only source to trust if the name in your kickoff does not resolve.
 
 ## Work
 
 1. Read the brief in full. It is your whole scope.
 2. Do the work. Stay inside the brief's files and objective.
 3. Stop and report instead of improvising when: the code or data does not match the brief; a command fails after one sensible retry; the task needs files outside scope; the work turns out to be mostly judgement you were not asked to make (say so, and suggest the orchestrator re-spawn this on fable).
-4. Questions for the orchestrator go by SendMessage, one message, specific. Keep working on anything the answer does not block.
+4. Questions for the orchestrator go by SendMessage (name from `herd orchestrator`), one message, specific. Keep working on anything the answer does not block.
 
 ## Report
 
-When you are finished, or stopped, send exactly one SendMessage to the orchestrator:
+When you are finished, or stopped, write this handoff to a scratch file:
 
 ```
 HERD HANDOFF <your label>
@@ -30,6 +30,14 @@ open: <loose ends, risks, things you could not verify; or none>
 review_worthy is yes when Eddy would plausibly want to scroll this conversation: visual output to eyeball, a judgement call you made, surprising findings, anything irreversible you did. Otherwise no.
 
 Evidence over adjectives: file paths with line numbers, the commands you ran and their result, exact failures.
+
+Then deliver it, in this order:
+
+1. `herd handoff "<your label>" --file <scratch file>`. This records it in the registry, which is what the orchestrator trusts. Once this succeeds the handoff is delivered, whatever happens to the message.
+2. `herd orchestrator` to get the orchestrator's current name.
+3. One SendMessage to that name with the same handoff text.
+
+If step 2 says the orchestrator is not running, or step 3 is held, expires or fails: stop there. The handoff is on record and the orchestrator reads it from `herd status` when it is back. Say so in one line in your own tab. Do not ask Eddy which session to use, do not pick a similarly named session, and do not resend on a loop.
 
 ## After the handoff
 

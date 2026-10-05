@@ -11,15 +11,20 @@ class HerdrError(Exception):
 
 
 class Herdr:
-    def __init__(self):
+    def __init__(self, socket=None):
+        """socket: the Herdr server to talk to (one per named Herdr session); default is this pane's own."""
         if os.environ.get("HERDR_ENV") != "1":
             raise HerdrError("not inside Herdr (HERDR_ENV is not 1); run herd from a Herdr pane")
+        self.env = {**os.environ, "HERDR_SOCKET_PATH": socket} if socket else None
 
-    def call(self, *args: str) -> dict:
+    def run(self, *args: str) -> subprocess.CompletedProcess:
         try:
-            p = subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=120)
+            return subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=120, env=self.env)
         except FileNotFoundError:
             raise HerdrError("herdr binary not found on PATH")
+
+    def call(self, *args: str) -> dict:
+        p = self.run(*args)
         body = None
         try:
             body = json.loads(p.stdout) if p.stdout.strip() else None
@@ -54,9 +59,22 @@ class Herdr:
     def workspaces(self) -> list:
         return self.call("workspace", "list")["workspaces"]
 
+    def pane_move_to_new_workspace(self, pane_id: str, label: str) -> dict:
+        """Move a pane (and the chat running in it) into a fresh workspace; its ids change."""
+        r = self.call("pane", "move", pane_id, "--new-workspace", "--label", label, "--no-focus")["move_result"]
+        return {"workspace_id": r["created_workspace"]["workspace_id"], "pane_id": r["pane"]["pane_id"],
+                "tab_id": r["pane"]["tab_id"]}
+
     def agent_start(self, name: str, pane_id: str, claude_args: list) -> None:
         self.call("agent", "start", name, "--kind", "claude", "--pane", pane_id,
                   "--timeout", "60000", "--", *claude_args)
+
+    def pane_screen(self, pane_id: str) -> str:
+        """The pane's visible screen as plain text."""
+        p = self.run("pane", "read", pane_id, "--source", "visible", "--format", "text")
+        if p.returncode != 0:
+            raise HerdrError(f"herdr pane read: {p.stderr.strip() or p.stdout.strip() or f'exit {p.returncode}'}")
+        return p.stdout
 
     def agent_prompt(self, name: str, text: str) -> None:
         self.call("agent", "prompt", name, text)

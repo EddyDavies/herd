@@ -15,7 +15,8 @@ An orchestrator Claude chat spawns labelled worker chats in Herdr tabs, reads th
 ## Use (from the orchestrator chat, inside a Herdr pane)
 
 ```
-herd init "fc: postiz rollout" --name "<this chat's name>"
+herd init "fc: postiz rollout"   # moves to a new workspace if this one belongs to a herd still in use
+herd adopt fc-postiz-rollout      # or: become an existing herd's orchestrator
 herd spawn "drip copy" --model opus --why "bounded copy" --brief brief.md
 herd status
 herd handoff "drip copy" --file handoff.txt

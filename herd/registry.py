@@ -76,10 +76,14 @@ class Registry:
         return [cls.load(p.stem) for p in sorted(state_dir().glob("*.json"))]
 
     @classmethod
-    def find_by_workspace(cls, workspace_id: str):
+    def find_by_workspace(cls, workspace_id: str, herdr_socket=None):
+        """Workspace ids are only unique within one Herdr server, so a recorded socket must match too."""
         for r in cls.all():
-            if r.data.get("workspace_id") == workspace_id:
-                return r
+            if r.data.get("workspace_id") != workspace_id:
+                continue
+            if r.data.get("herdr_socket") and herdr_socket and r.data["herdr_socket"] != herdr_socket:
+                continue
+            return r
         return None
 
     def worker(self, name: str):

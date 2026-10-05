@@ -14,11 +14,16 @@ Talk to workers with SendMessage (their name is their label). Workers talk to yo
 Check `echo $HERDR_ENV` prints 1. Then, once per orchestrator:
 
 ```
-ListAgents                       # find this chat's own name as others see it
-herd init "<short label>" --name "<that name>"
+herd init "<short label>"
 ```
 
+`init` renames this chat to `main: <label>` (it types `/rename` into this pane). That is your SendMessage name from then on, it survives restarts, and it is what Eddy and the workers look for in ListAgents. If you have an unsent draft in this chat's input box, herd waits rather than typing over it; `herd spawn` and `herd sync` retry, and put the name back if it ever drifts. Whenever you start or resume, run `herd status` first: it shows any handoffs workers recorded while you were away.
+
 The workspace and this chat's tab are both relabelled `◆ <label>`. `init` adopts the workspace you are already in (it never creates a new one), so any unrelated tabs already there stay and end up under the ◆ label; start the orchestrator in a fresh workspace if you want it clean. `herd status` shows your workers, `herd ls` shows every orchestrator on record.
+
+If the workspace already belongs to another herd, `init` handles it: it takes the workspace over only when that herd has every worker closed and its orchestrator has been idle for 3 hours or more (the old herd stays restorable); otherwise it moves this chat into a new workspace of its own. Either way, carry on. To continue an old herd rather than start a new one, use `herd adopt <slug>` instead of `init`; it makes room the same way. It refuses if the old herd's open workers run in a different Herdr session: run it from a pane in that session.
+
+Never fall back to subagents or background agents because `herd` refused. A refusal is a message for Eddy, verbatim.
 
 ## Spawn a worker
 
@@ -39,7 +44,7 @@ Spawn independent slices in parallel. Keep tightly coupled work in one worker or
 
 ## Handoffs
 
-A worker finishes by sending you:
+A worker finishes by recording a handoff in the registry (`herd handoff`) and then sending you the same text:
 
 ```
 HERD HANDOFF <label>
@@ -50,7 +55,7 @@ artifacts: ...
 open: ...
 ```
 
-Record it verbatim straight away: write it to a scratch file and run `herd handoff "<label>" --file <file>`. Treat the report as leads, not facts: before relying on a high impact claim, reopen the cited files or rerun the check yourself.
+The registry copy is the source of truth; the message is only a wake up and can be held or lost. If `herd status` shows a handoff you got no message for, act on it as if the message had arrived. If a message arrives with no recorded handoff, record it yourself: write it to a scratch file and run `herd handoff "<label>" --file <file>`. Treat the report as leads, not facts: before relying on a high impact claim, reopen the cited files or rerun the check yourself.
 
 ## Closing: deliberate, never automatic on "done"
 
