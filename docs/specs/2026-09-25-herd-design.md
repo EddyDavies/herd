@@ -1,57 +1,57 @@
-# herd: orchestrator and worker chats on Herdr
+# herd: shepherd and sheepdog chats on Herdr
 
 Date: 2026-09-25. Status: draft for review.
 
 ## Purpose
 
-One orchestrator chat spawns worker chats, each in its own labelled Herdr tab, running the model the work needs. Workers report back over SendMessage. A worker is closed only on a deliberate decision, never because its task finished. Everything that was ever spawned can be reopened with its conversation intact.
+One shepherd chat spawns sheepdog chats, each in its own labelled Herdr tab, running the model the work needs. Sheepdogs report back over SendMessage. A sheepdog is closed only on a deliberate decision, never because its task finished. Everything that was ever spawned can be reopened with its conversation intact.
 
 ## Agreed rules
 
-- Orchestrator runs Fable. Workers default to Opus; a worker runs Fable only when its own work is mostly judgement (efficient-fable split).
+- Shepherd runs Fable. Sheepdogs default to Opus; a sheepdog runs Fable only when its own work is mostly judgement (efficient-fable split).
 - Chats talk over SendMessage. Only the `herd` CLI touches Herdr (tabs, workspaces, agent start).
-- One Herdr workspace per orchestrator (option A): orchestrator is tab 1, one tab per worker.
+- One Herdr workspace per shepherd (option A): shepherd is tab 1, one tab per sheepdog.
 - Personal tooling: code in `~/code/tools/herd`, skills in `~/.claude/skills/`, state in `~/.local/state/herd/`. Nothing in campaign-central.
 - Close rule (section 3).
 
 ## Section 1: parts
 
 1. **`herd` CLI**, `herd.py`, stdlib only, run through `uv run --script`, symlinked to `~/.local/bin/herd`. All Herdr calls go through it.
-2. **Registry**, one JSON file per orchestrator: `~/.local/state/herd/<orch-slug>.json`. Written atomically (temp file + rename) before any tab opens.
-3. **Skills**: `herd-orchestrator` (spawn, model choice, handoffs, close table, asking Eddy) and `herd-worker` (who to report to, handoff format, never close yourself). Both live in the repo and are symlinked into `~/.claude/skills/`.
+2. **Registry**, one JSON file per shepherd: `~/.local/state/herd/<orch-slug>.json`. Written atomically (temp file + rename) before any tab opens.
+3. **Skills**: `herd-shepherd` (spawn, model choice, handoffs, close table, asking Eddy) and `herd-sheepdog` (who to report to, handoff format, never close yourself). Both live in the repo and are symlinked into `~/.claude/skills/`.
 
-## Section 2: starting an orchestrator and spawning workers
+## Section 2: starting a shepherd and spawning sheepdogs
 
 ### `herd init "<label>"`
 
-Run by the orchestrator chat inside its own pane. Reads `HERDR_WORKSPACE_ID` and `HERDR_PANE_ID`, looks up its own Claude session id from `herdr agent list` (`agent_session.value`), renames the workspace and its own tab to `◆ <label>`, and writes the registry with the orchestrator's session id, cwd, name and model. The orchestrator chat is renamed to the fixed name `main: <label>` by typing `/rename` into its pane (works mid-turn; a user-set name is stored in the transcript and survives `claude --resume`, both checked 2026-09-30). Without this Claude derives a new name (cwd plus a random suffix) on every start, which is how handoffs went to a name that no longer existed. `herd spawn` and `herd sync` reapply the name if the chat is running under another one. As a fallback, `herd orchestrator` reads the live name from Claude's own session records (`~/.claude/sessions/<pid>.json`, matched on session id, live pids only). If that workspace already belongs to another registry, init takes it over only when that herd is stale (every worker closed or failed, its orchestrator not working and no transcript write for 3 hours); the old registry is retired (`workspace_id` null, `retired_at` set; restore rebuilds it in a fresh workspace). Otherwise init moves its own pane into a new workspace (`herdr pane move --new-workspace`). `herd adopt <slug>` makes the current chat an existing registry's orchestrator (old one kept under `previous_orchestrators`), with the same take over or move rule when its workspace belongs to another herd; it refuses when the registry's open workers are live in a different Herdr server, since panes cannot move between servers. Before typing `/rename`, herd reads the orchestrator's screen (`herdr pane read`) and skips the rename while the input box holds a draft or is not visible; the next command retries. Every command finds the chat's own registry by `CLAUDE_CODE_SESSION_ID` before falling back to the workspace, because workspaces change hands and a moved pane keeps stale `HERDR_*` env vars. Chats all run in bypass mode (`permissions.defaultMode` in user settings, so herdr's bare `claude --resume` relaunch keeps it) so cross-session messages are never held for approval. Revised 2026-10-05.
+Run by the shepherd chat inside its own pane. Reads `HERDR_WORKSPACE_ID` and `HERDR_PANE_ID`, looks up its own Claude session id from `herdr agent list` (`agent_session.value`), renames the workspace and its own tab to `◆ <label>`, and writes the registry with the shepherd's session id, cwd, name and model. The shepherd chat is renamed to the fixed name `shepherd: <label>` by typing `/rename` into its pane (works mid-turn; a user-set name is stored in the transcript and survives `claude --resume`, both checked 2026-09-30). Without this Claude derives a new name (cwd plus a random suffix) on every start, which is how handoffs went to a name that no longer existed. `herd spawn` and `herd sync` reapply the name if the chat is running under another one. As a fallback, `herd shepherd` reads the live name from Claude's own session records (`~/.claude/sessions/<pid>.json`, matched on session id, live pids only). If that workspace already belongs to another registry, init takes it over only when that herd is stale (every sheepdog closed or failed, its shepherd not working and no transcript write for 3 hours); the old registry is retired (`workspace_id` null, `retired_at` set; restore rebuilds it in a fresh workspace). Otherwise init moves its own pane into a new workspace (`herdr pane move --new-workspace`). `herd adopt <slug>` makes the current chat an existing registry's shepherd (old one kept under `previous_orchestrators`), with the same take over or move rule when its workspace belongs to another herd; it refuses when the registry's open sheepdogs are live in a different Herdr server, since panes cannot move between servers. Before typing `/rename`, herd reads the shepherd's screen (`herdr pane read`) and skips the rename while the input box holds a draft or is not visible; the next command retries. Every command finds the chat's own registry by `CLAUDE_CODE_SESSION_ID` before falling back to the workspace, because workspaces change hands and a moved pane keeps stale `HERDR_*` env vars. Chats all run in bypass mode (`permissions.defaultMode` in user settings, so herdr's bare `claude --resume` relaunch keeps it) so cross-session messages are never held for approval. Revised 2026-10-05.
 
 ### `herd spawn "<label>" --model opus|fable --brief <file> [--cwd <dir>]`
 
-1. Generate a uuid; write the worker to the registry with status `starting`.
-2. `herdr tab create` in the orchestrator's workspace, label `<m>> <label>` (`o>` opus, `f>` fable), cwd defaulting to the orchestrator's.
+1. Generate a uuid; write the sheepdog to the registry with status `starting`.
+2. `herdr tab create` in the shepherd's workspace, label `<m>> <label>` (`o>` opus, `f>` fable), cwd defaulting to the shepherd's.
 3. `herdr agent start <slug> --kind claude --pane <pane> -- --session-id <uuid> --name "<label>" --model <model id> --dangerously-skip-permissions`. `<slug>` is the label lowercased to `[a-z0-9-]`, max 32, deduplicated.
-4. `herdr agent prompt <slug> "<kickoff>"`, where the kickoff says: load the `herd-worker` skill, your orchestrator is `<name>`, your brief is at `<file>` (copied into `~/.local/state/herd/<orch-slug>/briefs/`).
+4. `herdr agent prompt <slug> "<kickoff>"`, where the kickoff says: load the `herd-sheepdog` skill, your shepherd is `<name>`, your brief is at `<file>` (copied into `~/.local/state/herd/<orch-slug>/briefs/`).
 5. Status `live`. Print the tab id and slug.
 
-Any failed step marks the worker `failed` with the error, prints it, and exits non zero. No silent retries.
+Any failed step marks the sheepdog `failed` with the error, prints it, and exits non zero. No silent retries.
 
 ### Labels
 
 - Workspace: `◆ <orchestrator label>`, e.g. `◆ fc: postiz rollout`.
-- Orchestrator tab: `◆ <orchestrator label>`.
-- Worker tab: `<m>> <label>`, e.g. `o> drip copy`, `f> pricing review`. When a worker is awaiting your review, `herd` renames its tab to `👀 o> <label>`.
+- Shepherd tab: `◆ <orchestrator label>`.
+- Sheepdog tab: `<m>> <label>`, e.g. `o> drip copy`, `f> pricing review`. When a sheepdog is awaiting your review, `herd` renames its tab to `👀 o> <label>`.
 - Claude session name (what ListAgents and SendMessage show, and what `claude -r` lists): `<label>`.
 
-### Model choice (in `herd-orchestrator`)
+### Model choice (in `herd-shepherd`)
 
-Fable when the worker's core output is a decision: architecture, product or safety tradeoffs, reconciling conflicting evidence, final review, anything user facing where tone and judgement matter. Opus for everything bounded: research scans, inventories, implementing a written plan, test runs, bulk edits, data pulls. When unsure, Opus, and the worker may ask the orchestrator to re-spawn on Fable if it hits a judgement wall. The orchestrator states the choice and one-line reason in the registry (`--why`).
+Fable when the sheepdog's core output is a decision: architecture, product or safety tradeoffs, reconciling conflicting evidence, final review, anything user facing where tone and judgement matter. Opus for everything bounded: research scans, inventories, implementing a written plan, test runs, bulk edits, data pulls. When unsure, Opus, and the sheepdog may ask the shepherd to re-spawn on Fable if it hits a judgement wall. The shepherd states the choice and one-line reason in the registry (`--why`).
 
 ## Section 3: handoff and closing
 
 ### Handoff
 
-When a worker believes it has finished (or is stuck), it sends the orchestrator one SendMessage:
+When a sheepdog believes it has finished (or is stuck), it sends the shepherd one SendMessage:
 
 ```
 HERD HANDOFF <label>
@@ -62,32 +62,32 @@ artifacts: <paths, urls, commits>
 open: <loose ends, or none>
 ```
 
-The orchestrator records it verbatim: `herd handoff <label> --file <tmp>` (status `handed-off`). The worker then stays idle in its tab; it never closes itself.
+The shepherd records it verbatim: `herd handoff <label> --file <tmp>` (status `handed-off`). The sheepdog then stays idle in its tab; it never closes itself.
 
-### Close decision (orchestrator)
+### Close decision (shepherd)
 
-The orchestrator judges relevance itself (it holds the bigger picture); the worker supplies complete and review_worthy.
+The shepherd judges relevance itself (it holds the bigger picture); the sheepdog supplies complete and review_worthy.
 
 | complete | no longer relevant | review worthy | action |
 |---|---|---|---|
-| yes | yes | no | `herd close <label>`; one line in the orchestrator chat |
-| yes | yes | yes | `herd mark-review <label>`; tab gets 👀; orchestrator asks Eddy "close X? (worth a look because ...)" and closes only on yes |
+| yes | yes | no | `herd close <label>`; one line in the shepherd chat |
+| yes | yes | yes | `herd mark-review <label>`; tab gets 👀; shepherd asks Eddy "close X? (worth a look because ...)" and closes only on yes |
 | no, or still relevant | | | stays open |
 
 ### `herd close <label>`
 
-Refuses unless a handoff is recorded, or `--force` is given. Refuses if the agent is `working`. Closes the tab with `herdr tab close`, status `closed`, keeps everything else. A closed worker is still restorable.
+Refuses unless a handoff is recorded, or `--force` is given. Refuses if the agent is `working`. Closes the tab with `herdr tab close`, status `closed`, keeps everything else. A closed sheepdog is still restorable.
 
 ## Section 4: seeing and restoring
 
-- `herd ls` lists orchestrators; `herd status [<orch>]` lists workers with model, status, tab, age, last handoff line. Default orchestrator is the one owning `HERDR_WORKSPACE_ID`.
-- `herd sync` compares the registry with `herdr agent list`: a worker whose tab disappeared without `herd close` becomes `detached` (restorable, flagged).
+- `herd ls` lists shepherds; `herd status [<orch>]` lists sheepdogs with model, status, tab, age, last handoff line. Default shepherd is the one owning `HERDR_WORKSPACE_ID`.
+- `herd sync` compares the registry with `herdr agent list`: a sheepdog whose tab disappeared without `herd close` becomes `detached` (restorable, flagged).
 - `herd restore <orch> [--all | <label>...]`:
-  - no workspace for it: `herdr workspace create` with the saved label and cwd; orchestrator tab resumes with `claude --resume <orch id>`.
-  - default restores every worker that is not `closed` (live, handed-off, review, detached); `--all` includes closed; labels restore just those.
-  - each worker: new tab with its saved label, `herdr agent start ... -- --resume <uuid> --name "<label>" --model <model>`.
-  - already open workers are skipped, never duplicated (checked by session id against `herdr agent list`).
-- `herd restore --every` restores every orchestrator in the registry, for "I deleted the whole thing".
+  - no workspace for it: `herdr workspace create` with the saved label and cwd; shepherd tab resumes with `claude --resume <orch id>`.
+  - default restores every sheepdog that is not `closed` (live, handed-off, review, detached); `--all` includes closed; labels restore just those.
+  - each sheepdog: new tab with its saved label, `herdr agent start ... -- --resume <uuid> --name "<label>" --model <model>`.
+  - already open sheepdogs are skipped, never duplicated (checked by session id against `herdr agent list`).
+- `herd restore --every` restores every shepherd in the registry, for "I deleted the whole thing".
 
 ## Compared with what Herdr already gives
 
@@ -97,21 +97,21 @@ Refuses unless a handoff is recorded, or `--force` is given. Refuses if the agen
 | Start a Claude in a pane | `agent start --kind claude -- <args>`, waits until ready | pre-assigned `--session-id`, `--name`, `--model`, kickoff prompt |
 | Talk to an agent | `agent prompt` types into its terminal, `agent read` scrapes output | SendMessage both ways, structured handoff, no screen scraping |
 | Know which conversation a pane holds | `agent list` reports `agent_session` while it is live | durable registry that survives tab, workspace and server loss |
-| Reopen closed things | undo-close plugin (our fork f1a06fd) reopens a recently closed tab; Claude resume is off (`relaunch_agents: false`) | restore any worker or whole orchestrator by label, any time later |
+| Reopen closed things | undo-close plugin (our fork f1a06fd) reopens a recently closed tab; Claude resume is off (`relaunch_agents: false`) | restore any sheepdog or whole shepherd by label, any time later |
 | Decide when to close | nothing | handoff plus close table, review prompt to Eddy |
 | Pick a model | nothing | Fable vs Opus rule, recorded with a reason |
 
-herd uses Herdr's `agent prompt` exactly once per spawn (the kickoff), because a fresh worker has no SendMessage peer yet. After that, all traffic is SendMessage.
+herd uses Herdr's `agent prompt` exactly once per spawn (the kickoff), because a fresh sheepdog has no SendMessage peer yet. After that, all traffic is SendMessage.
 
 ## Named Herdr sessions (separate windows)
 
-Not part of herd v1. `herdr --session <name>` gives a separate persistent server that any new terminal window can attach to (`herdr session attach <name>`). herd could later take `--session` to put an orchestrator in its own window; option A keeps everything in `default` for now.
+Not part of herd v1. `herdr --session <name>` gives a separate persistent server that any new terminal window can attach to (`herdr session attach <name>`). herd could later take `--session` to put a shepherd in its own window; option A keeps everything in `default` for now.
 
 ## Testing
 
 - Unit (pytest via uv): registry read/write and atomic save, slug rules, label formats, argv built for `herdr` and `claude`, close refusals, restore skip logic, using a fake `herdr` on PATH that records calls and returns canned JSON.
-- Live smoke (one run, Opus, tiny brief, well under $0.50 of tokens): init in a scratch workspace, spawn one worker that replies with a handoff, close it, restore it, confirm the same session id resumed, clean up the workspace.
+- Live smoke (one run, Opus, tiny brief, well under $0.50 of tokens): init in a scratch workspace, spawn one sheepdog that replies with a handoff, close it, restore it, confirm the same session id resumed, clean up the workspace.
 
 ## Out of scope for v1
 
-Named Herdr sessions per orchestrator, non-Claude workers (Codex), cross-machine, automatic re-spawn on Fable, a dashboard.
+Named Herdr sessions per shepherd, non-Claude sheepdogs (Codex), cross-machine, automatic re-spawn on Fable, a dashboard.

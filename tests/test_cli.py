@@ -30,8 +30,8 @@ def reg():
 def test_init_records_orchestrator_and_labels_workspace(fake, orch):
     r = reg()
     assert r.data["orchestrator"]["session_id"] == "orch-sid"
-    assert r.data["orchestrator"]["name"] == "main: fc: postiz"
-    assert ["agent", "prompt", "w1:p1", "/rename main: fc: postiz"] in fake.calls()
+    assert r.data["orchestrator"]["name"] == "shepherd: fc: postiz"
+    assert ["agent", "prompt", "w1:p1", "/rename shepherd: fc: postiz"] in fake.calls()
     assert fake.world()["workspaces"]["w1"]["label"] == "◆ fc: postiz"
     assert fake.world()["tabs"]["w1:t1"]["label"] == "◆ fc: postiz"
 
@@ -39,7 +39,7 @@ def test_init_records_orchestrator_and_labels_workspace(fake, orch):
 def test_init_refuses_when_this_chat_already_runs_a_herd(fake, orch, monkeypatch, capsys):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "orch-sid")
     assert cli.main(["init", "other"]) == 1
-    assert "already is the orchestrator of fc-postiz" in capsys.readouterr().err
+    assert "already is the shepherd of fc-postiz" in capsys.readouterr().err
 
 
 def second_chat_in_w1(fake, keep_first=False):
@@ -141,7 +141,7 @@ def test_adopt_makes_this_chat_the_orchestrator(fake, orch, monkeypatch, capsys)
     r = reg()
     assert r.data["orchestrator"]["session_id"] == "new-sid" and r.data["orchestrator"]["pane_id"] == "w1:p2"
     assert r.data["previous_orchestrators"][0]["session_id"] == "orch-sid"
-    assert ["agent", "prompt", "w1:p2", "/rename main: fc: postiz"] in fake.calls()
+    assert ["agent", "prompt", "w1:p2", "/rename shepherd: fc: postiz"] in fake.calls()
     assert cli.main(["adopt", "fc-postiz"]) == 0 and "already" in capsys.readouterr().out
 
 
@@ -201,7 +201,7 @@ def test_rename_waits_while_the_orchestrator_has_a_draft(fake, orch, tmp_path, m
     assert reg().data["orchestrator"]["name"] == "app-32"
     fake.seed(screens={"w1:p1": "────\n❯ \n────\n  status"})
     assert cli.main(["sync"]) == 0
-    assert ["agent", "prompt", "w1:p1", "/rename main: fc: postiz"] in fake.calls()[before:]
+    assert ["agent", "prompt", "w1:p1", "/rename shepherd: fc: postiz"] in fake.calls()[before:]
 
 
 def test_input_draft_reads_the_claude_input_box():
@@ -227,8 +227,8 @@ def test_spawn_registers_before_tab_and_starts_claude(fake, orch):
     start = next(c for c in calls if c[:2] == ["agent", "start"])
     claude = start[start.index("--") + 1:]
     assert claude[:6] == ["--session-id", w["session_id"], "--name", "Drip copy", "--model", "claude-opus-5-5"]
-    prompt = next(c for c in calls if c[:2] == ["agent", "prompt"] and "herd-worker" in c[3])
-    assert '"main: fc: postiz"' in prompt[3] and w["brief"] in prompt[3]
+    prompt = next(c for c in calls if c[:2] == ["agent", "prompt"] and "herd-sheepdog" in c[3])
+    assert '"shepherd: fc: postiz"' in prompt[3] and w["brief"] in prompt[3]
     assert len([c for c in calls if c[:2] == ["agent", "prompt"] and c[3].startswith("/rename")]) == 1
     assert open(w["brief"]).read() == "Write the drip copy."
 
@@ -384,8 +384,8 @@ def test_orchestrator_fails_loud_when_not_running(fake, orch, tmp_path, monkeypa
     session_file(tmp_path, monkeypatch, "app-7b", sid="someone-else")
     assert cli.main(["orchestrator"]) == 1
     err = capsys.readouterr().err
-    assert "not running" in err and "main: fc: postiz" in err
-    assert reg().data["orchestrator"]["name"] == "main: fc: postiz"
+    assert "not running" in err and "shepherd: fc: postiz" in err
+    assert reg().data["orchestrator"]["name"] == "shepherd: fc: postiz"
 
 
 def test_spawn_renames_an_orchestrator_running_under_a_derived_name(fake, orch, tmp_path, monkeypatch):
@@ -393,8 +393,8 @@ def test_spawn_renames_an_orchestrator_running_under_a_derived_name(fake, orch, 
     before = len(fake.calls())
     spawn(orch)
     prompts = [c for c in fake.calls()[before:] if c[:2] == ["agent", "prompt"]]
-    assert prompts[0][2:] == ["w1:p1", "/rename main: fc: postiz"]
-    assert '"main: fc: postiz"' in prompts[1][3] and "herd orchestrator" in prompts[1][3]
+    assert prompts[0][2:] == ["w1:p1", "/rename shepherd: fc: postiz"]
+    assert '"shepherd: fc: postiz"' in prompts[1][3] and "herd shepherd" in prompts[1][3]
 
 
 def test_init_detects_name_without_flag(fake, tmp_path, monkeypatch):
@@ -406,7 +406,7 @@ def test_init_detects_name_without_flag(fake, tmp_path, monkeypatch):
                        "agent_session": {"kind": "id", "value": "orch-sid"}}])
     session_file(tmp_path, monkeypatch, "app-32")
     assert cli.main(["init", "fc: postiz"]) == 0
-    assert reg().data["orchestrator"]["name"] == "main: fc: postiz"
+    assert reg().data["orchestrator"]["name"] == "shepherd: fc: postiz"
 
 
 def test_failed_rename_keeps_live_name_and_warns(fake, orch, tmp_path, monkeypatch, capsys):
@@ -422,7 +422,7 @@ def test_restore_resumes_orchestrator_under_its_fixed_name(fake, orch, monkeypat
     monkeypatch.setenv("HERDR_WORKSPACE_ID", "w-elsewhere")
     assert cli.main(["restore", "fc-postiz"]) == 0
     start = next(c for c in fake.calls() if c[:2] == ["agent", "start"] and "orch-sid" in c)
-    assert start[start.index("--name") + 1] == "main: fc: postiz"
+    assert start[start.index("--name") + 1] == "shepherd: fc: postiz"
 
 
 def test_commands_use_the_orchestrators_own_herdr_server(fake, orch, monkeypatch):
@@ -443,7 +443,7 @@ def test_same_workspace_id_in_another_herdr_server_is_not_this_orchestrator(fake
     r.save()
     monkeypatch.setenv("HERDR_SOCKET_PATH", "/tmp/default.sock")
     assert cli.main(["status"]) == 1
-    assert "no orchestrator" in capsys.readouterr().err
+    assert "no shepherd" in capsys.readouterr().err
 
 
 def test_sync_reattaches_a_detached_worker_that_is_live(fake, orch, tmp_path):

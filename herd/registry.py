@@ -1,6 +1,6 @@
-"""Durable record of every orchestrator and the workers it spawned.
+"""Durable record of every shepherd and the sheepdogs it spawned.
 
-One JSON file per orchestrator in the state dir. Written before any tab
+One JSON file per shepherd in the state dir. Written before any tab
 opens, so a crash never loses a session id.
 """
 
@@ -54,7 +54,7 @@ class Registry:
     def create(cls, label: str, workspace_id: str, cwd: str, orchestrator: dict) -> "Registry":
         slug = slugify(label)
         if (state_dir() / f"{slug}.json").exists():
-            raise RegistryError(f"an orchestrator named {slug!r} already exists")
+            raise RegistryError(f"a shepherd named {slug!r} already exists")
         return cls(slug, {
             "label": label,
             "workspace_id": workspace_id,
@@ -68,7 +68,7 @@ class Registry:
     def load(cls, slug: str) -> "Registry":
         path = state_dir() / f"{slug}.json"
         if not path.exists():
-            raise RegistryError(f"no orchestrator named {slug!r} (see: herd ls)")
+            raise RegistryError(f"no shepherd named {slug!r} (see: herd ls)")
         return cls(slug, json.loads(path.read_text()))
 
     @classmethod
