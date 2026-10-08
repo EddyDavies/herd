@@ -147,9 +147,18 @@ def registry_of_session(sid):
 
 def current_registry(slug=None) -> Registry:
     if slug:
-        return Registry.load(slug)
+        r = Registry.load(slug)
+        if my_session_id() and r.data["orchestrator"].get("session_id") == my_session_id():
+            moved = rehome(r)
+            if moved:
+                print(moved)
+        return r
     r = registry_of_session(my_session_id())
     if r:
+        if r.data["orchestrator"].get("session_id") == my_session_id():
+            moved = rehome(r)
+            if moved:
+                print(moved)
         return r
     ws = os.environ.get("HERDR_WORKSPACE_ID")
     r = Registry.find_by_workspace(ws, os.environ.get("HERDR_SOCKET_PATH")) if ws else None
@@ -247,12 +256,72 @@ def make_room(r: Registry, h: Herdr, ws: str, pane: str, mine: dict, socket):
     return new_ws, {**mine, "pane_id": pane, "tab_id": tab}
 
 
+def old_server_sessions(r: Registry, socket) -> dict:
+    """Live sessions in the Herdr server r was recorded on, when that is not `socket`; {} otherwise."""
+    old_socket = r.data.get("herdr_socket")
+    if not (old_socket and socket and old_socket != socket):
+        return {}
+    try:
+        return herdr_for(r).live_sessions()
+    except HerdrError:
+        return {}  # that Herdr server is gone, so none of its chats are running
+
+
+def refuse_stranded(r: Registry, live: dict) -> None:
+    stranded = [w["label"] for w in r.data["workers"] if w["status"] in OPEN_STATES and w["session_id"] in live]
+    if stranded:
+        raise HerdError(f"{r.slug}'s workers ({', '.join(stranded)}) run in another Herdr session "
+                        f"(socket {r.data.get('herdr_socket')}); run herd adopt from a pane in that session, or close them first")
+
+
+def move_cwd(r: Registry, new: str) -> None:
+    """The herd's folder was moved: point it, and workers that worked inside it, at the folder the chat is in now."""
+    old = r.data.get("cwd")
+    if not old or old == new or Path(old).exists() or not Path(new).is_dir():
+        return
+    r.data["cwd"] = new
+    for w in r.data["workers"]:
+        if w.get("cwd") == old or (w.get("cwd") or "").startswith(old + "/"):
+            w["cwd"] = new + w["cwd"][len(old):]
+
+
+def rehome(r: Registry):
+    """r's orchestrator is this chat, but it now runs somewhere else: its folder moved, or Herdr brought it back
+    in another session or workspace. Point r at where the chat is now. Returns what moved, or None."""
+    h = Herdr()
+    try:
+        ws, pane, mine, sid = own_pane(h)
+    except HerdError:
+        return None
+    if sid != r.data["orchestrator"].get("session_id"):
+        return None
+    socket = os.environ.get("HERDR_SOCKET_PATH")
+    o = r.data["orchestrator"]
+    was = r.data.get("workspace_id")
+    cwd = mine.get("cwd") or os.getcwd()
+    if (ws, pane, socket) == (was, o.get("pane_id"), r.data.get("herdr_socket")) and (
+            Path(r.data.get("cwd") or cwd).exists()):
+        return None
+    refuse_stranded(r, old_server_sessions(r, socket))
+    o.update(pane_id=pane, tab_id=mine.get("tab_id"))
+    r.data["herdr_socket"] = socket
+    r.data.pop("retired_at", None)
+    move_cwd(r, cwd)
+    ws, mine = make_room(r, h, ws, pane, mine, socket)
+    r.save()
+    h.workspace_rename(ws, f"◆ {r.data['label']}")
+    if mine.get("tab_id"):
+        h.tab_rename(mine["tab_id"], f"◆ {r.data['label']}")
+    return f"moved {r.slug} to where this chat runs now: workspace {was} to {ws}, folder {r.data['cwd']}"
+
+
 def cmd_init(a) -> None:
     h = Herdr()
     ws, pane, mine, sid = own_pane(h)
     mine_already = registry_of_session(sid)
     if mine_already and mine_already.data["orchestrator"].get("session_id") == sid:
-        raise HerdError(f"this chat already is the orchestrator of {mine_already.slug}")
+        raise HerdError(f"this chat already is the orchestrator of {mine_already.slug}; "
+                        f"if it moved, run herd adopt {mine_already.slug} to point the herd here")
     socket = os.environ.get("HERDR_SOCKET_PATH")
     r = Registry.create(a.label, workspace_id=ws, cwd=(mine.get("cwd") or os.getcwd()), orchestrator={
         "name": live_name(sid) or a.name or "", "session_id": sid, "model": a.model, "pane_id": pane, "tab_id": mine.get("tab_id")})
@@ -273,24 +342,17 @@ def cmd_adopt(a) -> None:
     r = Registry.load(a.slug)
     old = r.data["orchestrator"]
     if old.get("session_id") == sid:
-        print(f"this chat already is the orchestrator of {r.slug}")
+        print(rehome(r) or f"this chat already is the orchestrator of {r.slug}")
         return
     if old.get("session_id") in h.live_sessions():
         raise HerdError(f"{r.slug}'s orchestrator chat is still running (pane {old.get('pane_id')}); close it first")
     socket = os.environ.get("HERDR_SOCKET_PATH")
-    old_socket = r.data.get("herdr_socket")
-    if old_socket and socket and old_socket != socket:
-        try:
-            live = herdr_for(r).live_sessions()
-        except HerdrError:
-            live = {}  # that Herdr server is gone, so none of its workers are running
-        if old.get("session_id") in live:
-            raise HerdError(f"{r.slug}'s orchestrator chat is still running in another Herdr session "
-                            f"(socket {old_socket}); close it first")
-        stranded = [w["label"] for w in r.data["workers"] if w["status"] in OPEN_STATES and w["session_id"] in live]
-        if stranded:
-            raise HerdError(f"{r.slug}'s workers ({', '.join(stranded)}) run in another Herdr session "
-                            f"(socket {old_socket}); run herd adopt from a pane in that session, or close them first")
+    live = old_server_sessions(r, socket)
+    if old.get("session_id") in live:
+        raise HerdError(f"{r.slug}'s orchestrator chat is still running in another Herdr session "
+                        f"(socket {r.data.get('herdr_socket')}); close it first")
+    refuse_stranded(r, live)
+    move_cwd(r, mine.get("cwd") or os.getcwd())
     r.data["orchestrator"] = {"name": live_name(sid) or "", "session_id": sid, "model": a.model,
                               "pane_id": pane, "tab_id": mine.get("tab_id")}
     r.data["previous_orchestrators"] = r.data.get("previous_orchestrators", []) + [old]

@@ -456,3 +456,65 @@ def test_sync_reattaches_a_detached_worker_that_is_live(fake, orch, tmp_path):
     assert cli.main(["sync"]) == 0
     assert reg().worker("drip")["status"] == "handed-off"
 
+
+
+def orchestrator_moved_to(fake, monkeypatch, tmp_path, ws="w3", socket="/tmp/new.sock"):
+    """The fc-postiz chat came back in another Herdr session: its old workspace and folder are gone."""
+    r = reg()
+    r.data["herdr_socket"] = "/tmp/old.sock"
+    r.data["cwd"] = str(tmp_path / "old-folder")
+    for w in r.data["workers"]:
+        w["cwd"] = str(tmp_path / "old-folder" / "sub")
+    r.save()
+    new = tmp_path / "new-folder"
+    new.mkdir()
+    fake.seed(workspaces={ws: {"label": "x"}},
+              tabs={f"{ws}:t1": {"label": "1", "workspace_id": ws, "pane_id": f"{ws}:p1"}},
+              agents=[{"agent": "claude", "pane_id": f"{ws}:p1", "tab_id": f"{ws}:t1", "workspace_id": ws,
+                       "cwd": str(new), "agent_status": "working",
+                       "agent_session": {"kind": "id", "value": "orch-sid"}}])
+    monkeypatch.setenv("HERDR_SOCKET_PATH", socket)
+    monkeypatch.setenv("HERDR_WORKSPACE_ID", ws)
+    monkeypatch.setenv("HERDR_PANE_ID", f"{ws}:p1")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "orch-sid")
+    return new
+
+
+def test_adopt_by_the_orchestrator_itself_points_a_moved_herd_at_its_new_home(fake, orch, tmp_path, monkeypatch, capsys):
+    spawn(orch)
+    new = orchestrator_moved_to(fake, monkeypatch, tmp_path)
+    capsys.readouterr()
+    assert cli.main(["adopt", "fc-postiz"]) == 0
+    assert "moved fc-postiz" in capsys.readouterr().out
+    r = reg()
+    assert r.data["workspace_id"] == "w3" and r.data["herdr_socket"] == "/tmp/new.sock"
+    assert r.data["orchestrator"]["pane_id"] == "w3:p1" and r.data["orchestrator"]["session_id"] == "orch-sid"
+    assert r.data["cwd"] == str(new) and r.worker("drip")["cwd"] == str(new / "sub")
+    assert fake.world()["workspaces"]["w3"]["label"] == "◆ fc: postiz"
+    assert cli.main(["adopt", "fc-postiz"]) == 0 and "already" in capsys.readouterr().out
+
+
+def test_spawn_from_a_moved_orchestrator_rehomes_first(fake, orch, tmp_path, monkeypatch, capsys):
+    new = orchestrator_moved_to(fake, monkeypatch, tmp_path)
+    w = spawn(orch, "Next")
+    assert w["tab_id"].startswith("w3:") and w["cwd"] == str(new)
+    assert "moved fc-postiz" in capsys.readouterr().out
+
+
+def test_rehome_refuses_while_workers_still_run_in_the_old_herdr_session(fake, orch, tmp_path, monkeypatch, capsys):
+    spawn(orch)
+    drip_sid = reg().worker("drip")["session_id"]
+    orchestrator_moved_to(fake, monkeypatch, tmp_path)
+    world = fake.world()
+    world["agents"].append({"agent": "claude", "pane_id": "w1:p9", "agent_status": "idle",
+                            "agent_session": {"kind": "id", "value": drip_sid}})
+    fake.seed(agents=world["agents"])  # the fake serves both sockets, so Drip looks live in the old one
+    assert cli.main(["adopt", "fc-postiz"]) == 1
+    assert "another Herdr session" in capsys.readouterr().err
+    assert reg().data["workspace_id"] == "w1"
+
+
+def test_init_from_a_moved_orchestrator_points_to_adopt(fake, orch, tmp_path, monkeypatch, capsys):
+    orchestrator_moved_to(fake, monkeypatch, tmp_path)
+    assert cli.main(["init", "other"]) == 1
+    assert "herd adopt fc-postiz" in capsys.readouterr().err

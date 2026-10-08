@@ -23,6 +23,8 @@ The workspace and this chat's tab are both relabelled `◆ <label>`. `init` adop
 
 If the workspace already belongs to another herd, `init` handles it: it takes the workspace over only when that herd has every worker closed and its orchestrator has been idle for 3 hours or more (the old herd stays restorable); otherwise it moves this chat into a new workspace of its own. Either way, carry on. To continue an old herd rather than start a new one, use `herd adopt <slug>` instead of `init`; it makes room the same way. It refuses if the old herd's open workers run in a different Herdr session: run it from a pane in that session.
 
+If this chat moved (its folder was renamed, or Herdr brought it back in another session or workspace), herd follows it: any herd command run by the orchestrator points the herd at the chat's current workspace, Herdr session and folder first, and `herd adopt <slug>` from this chat does the same on demand. If `herd spawn` fails with `workspace_not_found`, run `herd adopt <slug>` and spawn again.
+
 Never fall back to subagents or background agents because `herd` refused. A refusal is a message for Eddy, verbatim.
 
 ## Spawn a worker
