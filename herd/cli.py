@@ -375,6 +375,15 @@ def cmd_spawn(a) -> None:
     brief_src = Path(a.brief).expanduser()
     if not brief_src.is_file():
         raise HerdError(f"brief not found: {brief_src}")
+    same = [x for x in r.data["workers"] if x["label"].lower() == a.label.strip().lower()]
+    if any(x["status"] != "failed" for x in same):
+        raise HerdError(f"a sheepdog labelled {a.label!r} already exists in {r.slug}; pick another label "
+                        f"(or herd restore it if it is closed)")
+    open_tabs = {t["tab_id"] for t in h.tabs()} if any(x.get("tab_id") for x in same) else set()
+    for x in same:  # a retry replaces the failed spawn, and its tab if one was left behind
+        if x.get("tab_id") in open_tabs:
+            h.tab_close(x["tab_id"])
+    r.data["workers"] = [x for x in r.data["workers"] if x not in same]
     w = new_worker(r, a.label, model=a.model, why=a.why, cwd=str(Path(a.cwd or r.data["cwd"]).expanduser()), brief="")
     briefs = state_dir() / r.slug / "briefs"
     briefs.mkdir(parents=True, exist_ok=True)
@@ -390,6 +399,12 @@ def cmd_spawn(a) -> None:
     except HerdrError as e:
         set_status(w, "failed")
         w["error"] = str(e)
+        if w.get("tab_id"):  # never leave an empty tab behind
+            try:
+                h.tab_close(w["tab_id"])
+                w["tab_id"] = w["pane_id"] = None
+            except HerdrError:
+                pass
         r.save()
         raise
     set_status(w, "live")

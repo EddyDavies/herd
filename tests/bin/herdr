@@ -28,15 +28,20 @@ def out(result, code=0):
     sys.exit(code)
 
 
-def fail(msg):
+def fail(msg, code="fake_error"):
     json.dump(world, open(path, "w"))
-    print(json.dumps({"id": "fake", "error": {"code": "fake_error", "message": msg}}))
+    print(json.dumps({"id": "fake", "error": {"code": code, "message": msg}}))
     sys.exit(1)
 
 
 fail_prefix = os.environ.get("FAKE_HERDR_FAIL", "").split()
 if fail_prefix and argv[: len(fail_prefix)] == fail_prefix:
     fail("injected failure")
+
+# $FAKE_HERDR_BUSY=<n>: the next n agent starts find the new pane's shell not ready yet
+if argv[:2] == ["agent", "start"] and int(world.setdefault("busy", int(os.environ.get("FAKE_HERDR_BUSY") or 0))) > 0:
+    world["busy"] -= 1
+    fail("agent target pane is not an available shell", "agent_pane_busy")
 
 
 def opt(name):

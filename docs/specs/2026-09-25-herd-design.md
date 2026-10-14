@@ -66,13 +66,9 @@ The shepherd records it verbatim: `herd handoff <label> --file <tmp>` (status `h
 
 ### Close decision (shepherd)
 
-The shepherd judges relevance itself (it holds the bigger picture); the sheepdog supplies complete and review_worthy.
+The shepherd judges relevance itself (it holds the bigger picture); the sheepdog supplies complete and review_worthy (yes only when Eddy himself must decide or look).
 
-| complete | no longer relevant | review worthy | action |
-|---|---|---|---|
-| yes | yes | no | `herd close <label>`; one line in the shepherd chat |
-| yes | yes | yes | `herd mark-review <label>`; tab gets 👀; shepherd asks Eddy "close X? (worth a look because ...)" and closes only on yes |
-| no, or still relevant | | | stays open |
+Eddy oversees from his phone, so the shepherd reports handoffs as a brief overview in its own chat (one or two lines each, more on request) and never sends him to a tab. A sheepdog stays open only for an unclosed loop: `complete: no`, more work about to be sent, or a decision Eddy owes that needs its context (`herd mark-review <label>`, tab gets 👀, decision stated in the shepherd chat). Every other sheepdog is named in a "Closing after your next message: ..." line and closed with `herd close` on Eddy's next message unless he says keep. Closed sheepdogs are restorable, so "might need it later" keeps nothing open.
 
 ### `herd close <label>`
 

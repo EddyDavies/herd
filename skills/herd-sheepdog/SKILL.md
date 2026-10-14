@@ -21,13 +21,13 @@ When you are finished, or stopped, write this handoff to a scratch file:
 ```
 HERD HANDOFF <your label>
 complete: yes|no (what remains, if no)
-review_worthy: yes|no (why Eddy might want to look at this tab himself)
+review_worthy: yes|no (the decision or thing only Eddy can judge)
 summary: <3 to 6 lines: what you did and what you found>
 artifacts: <paths, urls, commits; or none>
 open: <loose ends, risks, things you could not verify; or none>
 ```
 
-review_worthy is yes when Eddy would plausibly want to scroll this conversation: visual output to eyeball, a judgement call you made, surprising findings, anything irreversible you did. Otherwise no.
+review_worthy is yes only when Eddy himself has to act: a decision only he can make, or output he must see with his own eyes (give the link or path in artifacts). Judgement calls you made and surprising findings go in the summary, not here. Eddy reads the shepherd's overview, not your tab, so write the summary so it stands on its own.
 
 Evidence over adjectives: file paths with line numbers, the commands you ran and their result, exact failures.
 

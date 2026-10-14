@@ -247,6 +247,55 @@ def test_spawn_failure_marks_failed_and_exits_1(fake, orch, monkeypatch, capsys)
     assert "injected failure" in capsys.readouterr().err
 
 
+def test_spawn_failure_closes_the_tab_it_opened(fake, orch, monkeypatch):
+    monkeypatch.setenv("FAKE_HERDR_FAIL", "agent start")
+    assert cli.main(["spawn", "Drip", "--model", "opus", "--why", "x", "--brief", str(orch)]) == 1
+    w = reg().worker("drip")
+    assert w["tab_id"] is None
+    assert any(c[:2] == ["tab", "close"] for c in fake.calls())
+
+
+def test_spawn_waits_for_the_new_shell(fake, orch, monkeypatch):
+    monkeypatch.setattr(cli.Herdr, "SHELL_WAIT", 0.01)
+    monkeypatch.setenv("FAKE_HERDR_BUSY", "2")
+    w = spawn(orch)
+    assert w["status"] == "live"
+    assert len([c for c in fake.calls() if c[:2] == ["agent", "start"]]) == 3
+
+
+def test_respawning_a_failed_label_reuses_its_record(fake, orch, monkeypatch):
+    monkeypatch.setenv("FAKE_HERDR_FAIL", "agent start")
+    cli.main(["spawn", "Drip", "--model", "opus", "--why", "x", "--brief", str(orch)])
+    monkeypatch.delenv("FAKE_HERDR_FAIL")
+    w = spawn(orch)
+    assert [x["label"] for x in reg().data["workers"]] == ["Drip"]
+    assert len([c for c in fake.calls() if c[:2] == ["tab", "create"]]) == 2
+    assert w["status"] == "live" and w["slug"] == "drip"
+
+
+def test_spawn_refuses_a_label_already_in_use(fake, orch, capsys):
+    spawn(orch)
+    assert cli.main(["spawn", "drip", "--model", "opus", "--why", "x", "--brief", str(orch)]) == 1
+    assert "already" in capsys.readouterr().err
+    assert len(reg().data["workers"]) == 1
+
+
+def test_respawn_closes_a_tab_an_old_failed_spawn_left_open(fake, orch):
+    r = reg()
+    fake.seed(tabs={**fake.world()["tabs"], "w1:t9": {"label": "o> Drip", "workspace_id": "w1", "pane_id": "w1:p9"}})
+    r.data["workers"].append({"label": "Drip", "slug": "drip", "status": "failed", "tab_id": "w1:t9"})
+    r.save()
+    spawn(orch)
+    assert ["tab", "close", "w1:t9"] in fake.calls()
+
+
+def test_lookup_prefers_the_live_record_over_a_failed_one(fake, orch):
+    r = reg()
+    r.data["workers"] = [{"label": "Drip", "slug": "drip", "status": "failed"},
+                         {"label": "Drip", "slug": "drip-2", "status": "live"}]
+    assert r.worker("Drip")["slug"] == "drip-2"
+
+
 def test_same_slug_labels_get_distinct_names(fake, orch):
     cli.main(["spawn", "Drip copy", "--model", "opus", "--why", "x", "--brief", str(orch)])
     cli.main(["spawn", "drip-copy", "--model", "opus", "--why", "x", "--brief", str(orch)])

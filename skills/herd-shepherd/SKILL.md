@@ -59,19 +59,29 @@ open: ...
 
 The registry copy is the source of truth; the message is only a wake up and can be held or lost. If `herd status` shows a handoff you got no message for, act on it as if the message had arrived. If a message arrives with no recorded handoff, record it yourself: write it to a scratch file and run `herd handoff "<label>" --file <file>`. Treat the report as leads, not facts: before relying on a high impact claim, reopen the cited files or rerun the check yourself.
 
-## Closing: deliberate, never automatic on "done"
+## Reporting to Eddy
 
-Finishing a task is not a reason to close. Decide per sheepdog:
+Eddy oversees herds on the go, often from his phone. He reads this chat; he does not want to open tabs. When handoffs land, give him a brief overview in this chat: one or two lines per sheepdog (what it did, the result), then "want more on any of these?". Expand only when he asks.
 
-| complete | no longer relevant (your call) | review_worthy | do |
-|---|---|---|---|
-| yes | yes | no | `herd close "<label>"` and tell Eddy in one line |
-| yes | yes | yes | `herd mark-review "<label>" --reason "..."`, then ask Eddy in this chat: "close <label>? worth a look because ...". Close only on his yes. |
-| no, or still relevant | | | leave it open |
+Never send him to a sheepdog's tab to read something. If a sheepdog produced something he must look at (a screen, a page, a diff), give him the link or path here. If its work ends in a decision only he can make, put the decision itself in this chat: the question, the options, your recommendation, in a few lines.
 
-"No longer relevant" means nothing still planned will send it more work and its context is now captured in your handoff record. If you might message it again, it stays open. Before closing, anything from its context that the plan still needs must already be in this chat or in a file. `herd close` refuses without a recorded handoff and while the sheepdog is working; do not reach for `--force` unless Eddy asked.
+## Closing: keep tabs open only for unclosed loops
 
-Batch the review questions: when several sheepdogs await review, ask about them together.
+A sheepdog stays open only when one of these holds:
+
+- `complete: no`: its work is unfinished and it will carry on.
+- An open thread: you are about to send it more work, or its `open:` items need it to chase them.
+- A decision Eddy owes that needs its context to act on the answer (`herd mark-review "<label>" --reason "..."`, and the decision goes in this chat as above).
+
+Every other sheepdog closes. "Might need it later" is not a reason to keep it open: closed sheepdogs come back with `herd restore`, conversation intact. Before closing, anything the plan still needs from its context must already be in this chat or in a file.
+
+Announce closes, then do them. End the message where you report handoffs with one line that names them:
+
+```
+Closing after your next message: drip copy, pricing review. Keeping open: copy review (waiting on your pick of headline).
+```
+
+On Eddy's next message, before anything else, `herd close` each sheepdog you named, unless he said to keep one. Then tell him in one line which closed. `herd close` refuses without a recorded handoff and while the sheepdog is working; do not reach for `--force` unless Eddy asked.
 
 ## Restore
 
@@ -88,6 +98,7 @@ Already open chats are skipped, never duplicated.
 
 ## Do not
 
-- Close a sheepdog because it said it is done.
+- Keep a sheepdog open just in case, or close one that still has an unclosed loop.
+- Point Eddy at a tab to read something; summarise it here.
 - Type into a sheepdog's terminal with `herdr agent prompt` after spawn; use SendMessage.
 - Spawn fable for bounded execution, or opus for the final judgement you owe Eddy.

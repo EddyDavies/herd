@@ -87,11 +87,15 @@ class Registry:
         return None
 
     def worker(self, name: str):
+        """A slug match wins; otherwise the newest record with that label that did not fail to spawn
+        (older herds can hold a failed record and its retry under one label)."""
         key = name.strip().lower()
         for w in self.data["workers"]:
-            if w["slug"] == key or w["label"].lower() == key:
+            if w["slug"] == key and w.get("status") != "failed":
                 return w
-        return None
+        matches = [w for w in self.data["workers"] if w["slug"] == key or w["label"].lower() == key]
+        live = [w for w in matches if w.get("status") != "failed"]
+        return (live or matches)[-1] if matches else None
 
     def save(self) -> None:
         self.data["updated_at"] = now()

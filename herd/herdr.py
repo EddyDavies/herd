@@ -4,13 +4,19 @@ object or raises HerdrError with herdr's own message."""
 import json
 import os
 import subprocess
+import time
 
 
 class HerdrError(Exception):
-    pass
+    def __init__(self, msg, code=None):
+        super().__init__(msg)
+        self.code = code
 
 
 class Herdr:
+    SHELL_WAIT = 1.0  # seconds between agent start attempts while a new pane's shell is still starting
+    SHELL_TRIES = 20
+
     def __init__(self, socket=None):
         """socket: the Herdr server to talk to (one per named Herdr session); default is this pane's own."""
         if os.environ.get("HERDR_ENV") != "1":
@@ -33,7 +39,7 @@ class Herdr:
         if p.returncode != 0 or body is None or "error" in body:
             err = (body or {}).get("error") or {}
             msg = err.get("message") or p.stderr.strip() or p.stdout.strip() or f"exit {p.returncode}"
-            raise HerdrError(f"herdr {' '.join(args[:2])}: {msg}")
+            raise HerdrError(f"herdr {' '.join(args[:2])}: {msg}", err.get("code"))
         return body.get("result", {})
 
     def tab_create(self, workspace_id: str, label: str, cwd: str) -> tuple:
@@ -66,8 +72,17 @@ class Herdr:
                 "tab_id": r["pane"]["tab_id"]}
 
     def agent_start(self, name: str, pane_id: str, claude_args: list) -> None:
-        self.call("agent", "start", name, "--kind", "claude", "--pane", pane_id,
-                  "--timeout", "60000", "--", *claude_args)
+        """A freshly created tab's shell can still be starting (slow under load, e.g. several spawns in a row);
+        herdr then refuses with agent_pane_busy, so wait for it rather than failing the spawn."""
+        for attempt in range(self.SHELL_TRIES):
+            try:
+                self.call("agent", "start", name, "--kind", "claude", "--pane", pane_id,
+                          "--timeout", "60000", "--", *claude_args)
+                return
+            except HerdrError as e:
+                if e.code != "agent_pane_busy" or attempt == self.SHELL_TRIES - 1:
+                    raise
+                time.sleep(self.SHELL_WAIT)
 
     def pane_screen(self, pane_id: str) -> str:
         """The pane's visible screen as plain text."""
